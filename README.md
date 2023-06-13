@@ -11,6 +11,8 @@ The plugin is configured directly in the Porla TOML config file.
 # A cron expression to set how often the monitored folders
 # should be checked. This example means every 5 seconds.
 cron = "*/5 * * * * *"
+# Where folder monitor should store its database file.
+db   = "/var/lib/porla/folder-monitor.db"
 
 [[folder-monitor.dirs]]
 path = "/home/viktor/watch" # The path to monitor

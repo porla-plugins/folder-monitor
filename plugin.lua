@@ -54,7 +54,7 @@ function porla.init()
         return false
     end
 
-    db = sqlite.open("/Users/viktor/watch/db.sqlite")
+    db = sqlite.open(cfg.db)
     db:exec("PRAGMA journal_mode = WAL")
 
     if not migrate(db) then
