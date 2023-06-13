@@ -1,66 +1,43 @@
-local cron_ref = nil
-local db_ref   = nil
+-- our own code split into files
+local history  = require "db.history"
+local migrate  = require "db.migrate"
 
-local migrations = {
-    [[
-    CREATE TABLE file_history (
-        id INTEGER PRIMARY KEY,
-        file_name TEXT NOT NULL UNIQUE,
-        timestamp INTEGER NOT NULL
-    )
-    ]]
-}
+-- dependencies that porla provides
+local config   = require "config"
+local cron     = require "cron"
+local fs       = require "fs"
+local log      = require "log"
+local sqlite   = require "sqlite"
+local torrents = require "torrents"
 
-local function historyContains(entry)
-    local exists = false
-
-    db_ref
-        :prepare("SELECT COUNT(*) FROM file_history WHERE file_name = $1")
-        :bind(1, entry.path)
-        :step(function(row)
-            exists = row:int(0) > 0
-        end)
-
-    return exists
-end
-
-local function historyInsert(entry)
-    db_ref
-        :prepare("INSERT INTO file_history (file_name, timestamp) VALUES ($1, strftime('%s'))")
-        :bind(1, entry.path)
-        :step(function(row)
-        end)
-end
-
-local function check(ctx, directories)
-    for _, directory in pairs(directories) do
-        local dir = fs.Directory(directory.path)
-
-        if not dir:exists() then
+local function check()
+    for _, directory in pairs(cfg.dirs) do
+        if not fs.exists(directory.path) then
             goto next
         end
 
-        for _, entry in pairs(dir:iterate()) do
-            if entry.extension ~= ".torrent" then
+        for _, file in ipairs(fs.dir(directory.path)) do
+            if fs.ext(file) ~= ".torrent" then
                 goto next_entry
             end
 
-            if historyContains(entry) then
+            if history.contains(db, file) then
                 goto next_entry
             end
 
-            local torrent = load_torrent_file(entry.path)
+            local torrent = torrents.load(file)
 
-            if ctx.session:hasTorrent(torrent) then
+            if torrents.has(torrent) then
+                history.insert(db, file)
                 goto next_entry
             end
 
-            ctx.session:addTorrent({
-                path = "/tmp",
+            torrents.add({
+                path    = directory.save_path,
                 torrent = torrent
             })
 
-            historyInsert(entry)
+            history.insert(db, file)
 
             ::next_entry::
         end
@@ -69,49 +46,26 @@ local function check(ctx, directories)
     end
 end
 
-local function migrate()
-    local version
+function porla.init()
+    cfg = config["folder-monitor"]
 
-    db_ref
-        :prepare("PRAGMA user_version")
-        :step(function(row)
-            version = row:int(0)
-        end)
-
-    if version == #migrations then
-        return
+    if cfg == nil then
+        log.warning("No folder-monitor config")
+        return false
     end
 
-    print(string.format("Migrating folder-monitor from version %d to version %d", version, #migrations))
+    db = sqlite.open("/Users/viktor/watch/db.sqlite")
+    db:exec("PRAGMA journal_mode = WAL")
 
-    for i=version, #migrations - 1, 1 do
-        db_ref:exec(migrations[i + 1])
+    if not migrate(db) then
+        log.error("Failed to run migrations for folder-monitor")
+        return false
     end
 
-    db_ref:exec("PRAGMA user_version = "..#migrations)
+    cron_ref = cron.schedule({
+        expression = cfg.cron,
+        callback   = check
+    })
+
+    return true
 end
-
-local P = {
-    init = function(ctx)
-        if ctx.config["folder-monitor"] == nil then
-            print("No folder-monitor config")
-            return
-        end
-
-        local cfg = ctx.config["folder-monitor"]
-
-        cron_ref = cron({
-            expression = cfg.cron,
-            callback = function()
-                check(ctx, cfg.dirs)
-            end
-        })
-
-        db_ref = sqlite3.open(":memory:")
-        db_ref:exec("PRAGMA journal_mode = WAL")
-
-        migrate()
-    end
-}
-
-return P

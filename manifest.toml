@@ -1,0 +1,7 @@
+main = "plugin.lua"
+
+[plugin]
+name = "folder-monitor"
+version = "0.1"
+authors = ["Viktor Elofsson <viktor@viktorelofsson.se>"]
+homepage = "https://github.com/porla-plugins/folder-monitor"
