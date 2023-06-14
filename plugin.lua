@@ -1,5 +1,5 @@
 -- our own code split into files
-local history  = require "db.history"
+local History  = require "db.history"
 local migrate  = require "db.migrate"
 
 -- dependencies that porla provides
@@ -7,37 +7,75 @@ local config   = require "config"
 local cron     = require "cron"
 local fs       = require "fs"
 local log      = require "log"
-local sqlite   = require "sqlite"
+local sqlite3  = require "sqlite3"
 local torrents = require "torrents"
 
-local function check()
+-- small function to check if an array contains
+-- a specific value
+local function contains(array, value)
+    for _, item in pairs(array) do
+        if item == value then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function check(db)
+    local history = History:new{db = db}
+
     for _, directory in pairs(cfg.dirs) do
         if not fs.exists(directory.path) then
             goto next
         end
 
+        local extensions = {".torrent"}
+
+        if type(directory.extensions) == "table" then
+            extensions = directory.extensions
+        end
+
+        if type(directory.extensions) == "string" then
+            extensions = {directory.extensions}
+        end
+
         for _, file in ipairs(fs.dir(directory.path)) do
-            if fs.ext(file) ~= ".torrent" then
+            if not contains(extensions, fs.ext(file)) then
                 goto next_entry
             end
 
-            if history.contains(db, file) then
+            if history:contains(file) then
                 goto next_entry
             end
 
-            local torrent = torrents.load(file)
+            local file_handle = io.open(file, 'rb')
+            local file_buffer = file_handle:read("*all")
+            file_handle:close()
+
+            if not file_buffer then
+                goto next_entry
+            end
+
+            -- no support for magnet links just yet
+            if string.sub(file_buffer, 0, 7) == "magnet:" then
+                goto next_entry
+            end
+
+            local torrent = torrents.parse(file_buffer, 'buffer')
 
             if torrents.has(torrent) then
-                history.insert(db, file)
+                history:insert(file)
                 goto next_entry
             end
 
             torrents.add({
-                path    = directory.save_path,
-                torrent = torrent
+                preset    = directory.preset,
+                save_path = directory.save_path,
+                ti        = torrent
             })
 
-            history.insert(db, file)
+            history:insert(file)
 
             ::next_entry::
         end
@@ -45,6 +83,8 @@ local function check()
         ::next::
     end
 end
+
+local db = nil
 
 function porla.init()
     cfg = config["folder-monitor"]
@@ -54,7 +94,7 @@ function porla.init()
         return false
     end
 
-    db = sqlite.open(cfg.db)
+    db = sqlite3.open(cfg.db)
     db:exec("PRAGMA journal_mode = WAL")
 
     if not migrate(db) then
@@ -64,8 +104,14 @@ function porla.init()
 
     cron_ref = cron.schedule({
         expression = cfg.cron,
-        callback   = check
+        callback   = function()
+            check(db)
+        end
     })
 
     return true
+end
+
+function porla.destroy()
+    db:close()
 end

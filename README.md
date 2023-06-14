@@ -15,6 +15,7 @@ cron = "*/5 * * * * *"
 db   = "/var/lib/porla/folder-monitor.db"
 
 [[folder-monitor.dirs]]
+extensions = [".torrent"]   # What file extensions are we monitoring?
 path = "/home/viktor/watch" # The path to monitor
 save_path = "/tmp"          # The save path for torrents
 ```

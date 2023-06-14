@@ -1,3 +1,5 @@
+local sqlite3 = require "sqlite3"
+
 local migrations = {
     [[
     CREATE TABLE file_history (
@@ -9,13 +11,19 @@ local migrations = {
 }
 
 local function migrate(db)
-    local version
+    local version = nil
 
-    db
-        :prepare("PRAGMA user_version")
-        :step(function(row)
-            version = row:int(0)
-        end)
+    local stmt = db:prepare("PRAGMA user_version")
+
+    if stmt:step() == sqlite3.ROW then
+        version = stmt:get_value(0)
+    end
+
+    stmt:finalize()
+
+    if version == nil then
+        return false
+    end
 
     if version == #migrations then
         return true
