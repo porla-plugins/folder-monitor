@@ -25,7 +25,7 @@ end
 local function check(db)
     local history = History:new{db = db}
 
-    for _, directory in pairs(cfg.dirs) do
+    for _, directory in pairs(config.dirs) do
         if not fs.exists(directory.path) then
             goto next
         end
@@ -87,14 +87,12 @@ end
 local db = nil
 
 function porla.init()
-    cfg = config["folder-monitor"]
-
-    if cfg == nil then
+    if config == nil then
         log.warning("No folder-monitor config")
         return false
     end
 
-    db = sqlite3.open(cfg.db)
+    db = sqlite3.open(config.db)
     db:exec("PRAGMA journal_mode = WAL")
 
     if not migrate(db) then
@@ -103,7 +101,7 @@ function porla.init()
     end
 
     cron_ref = cron.schedule({
-        expression = cfg.cron,
+        expression = config.cron,
         callback   = function()
             check(db)
         end
@@ -113,5 +111,7 @@ function porla.init()
 end
 
 function porla.destroy()
-    db:close()
+    if db ~= nil then
+        db:close()
+    end
 end
