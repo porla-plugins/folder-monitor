@@ -4,8 +4,9 @@ This plugin adds folder monitoring capabilities to Porla.
 
 ## Configuration
 
-The plugin is configured with Lua. The following is an overview of all the
-parameters you can use.
+The plugin is configured with Lua. The following is an example Lua
+configuration that you can adjust to your needs and then paste in the plugin
+configuration field in Porla.
 
 ```lua
 return {
