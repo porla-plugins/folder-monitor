@@ -1,6 +1,10 @@
 # A folder monitor for Porla
 
-This plugin adds folder monitoring capabilities to Porla.
+This plugin adds folder monitoring capabilities to Porla. It can filter files
+based on extension.
+
+If the contents of a matched file starts with `magnet:` that file will be
+treated as a magnet link in a file, and added as such.
 
 ## Configuration
 
@@ -14,7 +18,7 @@ return {
   db   = __state_dir.."/folder-monitor.db",
   dirs = {
     {
-      extensions = {".torrent"},
+      extensions = {".magnet", ".torrent"},
       path       = "/home/viktor/watch",
       preset     = "default",
       save_path  = "/tmp"

@@ -57,23 +57,27 @@ local function check(db)
                 goto next_entry
             end
 
+            local params = {
+                preset    = directory.preset,
+                save_path = directory.save_path
+            }
+
             -- no support for magnet links just yet
             if string.sub(file_buffer, 0, 7) == "magnet:" then
-                goto next_entry
+                log.info("File contents parsed as magnet URI")
+                params.magnet_uri = file_buffer
+            else
+                local torrent = torrents.parse(file_buffer, 'buffer')
+
+                if torrents.has(torrent) then
+                    history:insert(file)
+                    goto next_entry
+                end
+
+                params.ti = torrent
             end
 
-            local torrent = torrents.parse(file_buffer, 'buffer')
-
-            if torrents.has(torrent) then
-                history:insert(file)
-                goto next_entry
-            end
-
-            torrents.add({
-                preset    = directory.preset,
-                save_path = directory.save_path,
-                ti        = torrent
-            })
+            torrents.add(params)
 
             history:insert(file)
 
